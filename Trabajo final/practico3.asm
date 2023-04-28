@@ -51,7 +51,19 @@ sw  $t1, 12($t0)
 
 la  $t1, delcategory
 sw  $t1, 16($t0)
- 
+
+la  $t1, newobject
+sw  $t1, 16($t0)
+
+la  $t1, delobject
+sw  $t1, 16($t0)
+
+la  $t1, delcat_object
+sw  $t1, 16($t0)
+
+la  $t1, exit
+sw  $t1, 20($t0)
+
 
 inicio:
 
@@ -66,15 +78,15 @@ syscall
 
 move $t2, $v0
  
-beq $t2, 0 , exit
-beq $t2, 1 , newcategory
-beq $t2, 2 , nextcategory
-beq $t2, 3 , prevcategory
-beq $t2, 4 , listcategories
-beq $t2, 5 , delcategory
-beq $t2, 6 , newobject
-beq $t2, 7 , listobjects
-beq $t2, 8 , delobject
+beq $t2, 0 , 20($t0)        # exit
+beq $t2, 1 , 4($t0)         # newcategory
+beq $t2, 2 , 8($t0)         #nextcategory   
+beq $t2, 3 , 12($t0)               #prevcategory
+beq $t2, 4 , 8($t0)               #listcategories
+beq $t2, 5 , 8($t0)               #delcategory
+beq $t2, 6 , 8($t0)               #newobject
+beq $t2, 7 , 8($t0)               #listobjects
+beq $t2, 8 , 8($t0)               #delobject
 
 blt $t2, $0 , else   # si la opcion ingresada es menor a 0 o mayor a 8 ,salta a la etiqueta "else"
 bgt $t2, 8 , else
@@ -101,9 +113,9 @@ la    $a0, cclist     # $a0 = list , cclist apunta a la lista de categorías
 li    $a1, 0          # $a1 = NULL
 jal   addnode         
 
-lw    $t0, wclist     #
+lw    $t0, wclist     
 bnez  $t0, newcategory_end
-sw    $v0, wclist             # update working list if was NULL
+sw    $v0, wclist     # update working list if was NULL
 
 
 newcategory_end:
@@ -227,82 +239,55 @@ listcategories:
 addiu $sp, $sp, -4
 sw    $ra, 4($sp)
 
-lw $a0 , cclist
-lw $a1,  wclist
+la $a0 , cclist # inicio de la lista(ultimo nodo ingresado)
+lw $t0 , ($a0)   # primer nodo
+lw $t1 , 0($t0)  # ultimo nodo
+lw $t2 , 12($t1) # copia del 1er nodo
 
-lw $t0 , ($a0)  # inicio de la lista
-lw $t3 , ($a1)  # categoria actual
-lw $t6 , ($a0)  # primer nodo como bandera , para comparar en el ultimo nodo de la lista circular
+# test ------------------------------------
+#la $t4 , 8($t1) # bloque de string
 
-beqz $t0 , error203  # la lista esta vacia ?
+#lw $a0 , ($t4) # se imprime el nombre de la categoria
+#li $v0 , 4
+#syscall
 
-li $t7 , 1
+# -----------------------------------------
+
+beqz $t0 , error301
+
+lw $a1,  wclist 
+
+li $t5 , 1
 
 while:
-
-beq $t0 , $t3 , imprimir_actual
-beq $t7 , 1 , body # bandera
-beq $t0 , $t6 , endwhile    
+beq $t5 , 1 , body
+beq $t0 , $t2 , endwhile    
 
 body:
-lw $t1 , ($t0)
-la $t2 , 8($t1)
+la $t4 , 8($t0) # bloque de string
 
-lw $a0 , ($t2) # se imprime el nombre de la categoria
+lw $a0 , ($t4) # se imprime el nombre de la categoria
 li $v0 , 4
 syscall
-
-lw $t1 , 12($t1)
-
-lw $t0 , ($t1)
-
-addi $t7 , $t7 , 1
+ 
+lw $t0 , 12($t0)
+addi $t5 ,$t5 , 1
 
 j while
 
 endwhile:
 j listcategories_end
 
-
-imprimir_actual:
-
-beq $t7 , 1 , body2 # bandera
-beq $t0 , $t6 , endwhile
-
-body2:
-lw $t1 , ($t0)
-la $t2 , 8($t1)
-
-la $a0 , actual # se imprime "> "
-li $v0 , 4
-syscall
-
-lw $a0 , ($t2) # se imprime el nombre de la categoria actual
-li $v0 , 4
-syscall
-
-lw $t1 , 12($t1)
-
-lw $t0 , ($t1)
-
-addi $t7 , $t7 , 1  # se actualiza la bandera
-
-j while
-
-
-error203:
-
+error301:
 la $a0 , error
 li $v0 , 4
 syscall
 
-li $a0 , 203
+li $a0 , 301
 li $v0 , 1
 syscall
 
-
 listcategories_end:
-
 lw    $ra, 4($sp)     		
 addiu $sp, $sp, 4
 j     inicio
@@ -320,31 +305,100 @@ sw    $ra, 4($sp)
 lw $a0 , wclist  # categoria que se quiere borrar
 lw $a1 , cclist  # puntero a la lista
 
-# borrar categoria ,si hay solo una y no contiene objetos
-lw $t0 , wclist 
+lw $t0 , ($a0) 
 lw $t1 , 4($t0)  # lista de objetos de la categoria
 
-bne $t1 , $0 , delcat_object      # se verifica si el nodo tiene objetos asignados
-bne $t0 , 12($a0) , delcat_object # se verifica si el nodo a borrar tiene nodos siguientes 
-bne $t0 , 0($a0) , delcat_object  # se verifica si el nodo a borrar tiene nodos anteriores
+bne $t1 , $0 , delcatunique_object  # se verifica si el nodo tiene objetos asignados
+
+# borrar categoria ,si hay solo una y no contiene objetos
+delcatunique_non_object:
+
+lw $t2 , 0($a0)
+lw $t3 , 12($a0)
+
+bne $t0 , $t2 , delcat_object  # se verifica si el nodo a borrar tiene nodos anteriores
+bne $t0 , $t3 , delcat_object # se verifica si el nodo a borrar tiene nodos siguientes 
 
 sw $0 , 0($a0) # se nulifican los ptr siguiente y anterior
 sw $0 , 12($a0)
-
 jal sfree
 
 j delcategory_end
 
 
 # borrar categoria unica con objetos
-delcat_object:
-bne $t0 , 12($a0) , delcat_object # se verifica si el nodo a borrar tiene nodos siguientes 
-bne $t0 , 0($a0) , delcat_object  # se verifica si el nodo a borrar tiene nodos anteriores
+delcatunique_object:
+
+lw $t2 , 0($a0)
+lw $t3 , 12($a0)
+
+bne $t0 , $t2 , delcat_object # se verifica si el nodo a borrar tiene nodos siguientes 
+bne $t0 , $t3 , delcat_object  # se verifica si el nodo a borrar tiene nodos anteriores
+
+lw $a0 , ($t1)  # ptr a lista de objetos
+lw $t3 , ($a0)  # bandera
+
+while2:
+beq $a0 , $t3 , endwhile2
+
+jal sfree
+
+lw $a0 , 12($t1) # pasa a objeto siguente, en la lista de objetos
+
+j while2
+
+endwhile2:
+sw $0 , 0($a0) # se nulifican los ptr siguiente y anterior
+sw $0 , 12($a0)
+lw $a0 , ($t0) # borra categoria seleccionada
+
+jal delnode
+
+j delcategory_end
 
 
 # borrar categoria no unica con objetos
+delcat_object:
+
+lw $t2 , 0($a0)
+lw $t3 , 12($a0)
+
+bne $t1 , $0 , delcat_non_object      # se verifica si el nodo tiene objetos asignados
+bne $t0 , $t2 , delcat_non_object # se verifica si el nodo a borrar tiene nodos anteriores  
+bne $t0 , $t3 , delcat_non_object  # se verifica si el nodo a borrar tiene nodos siguientes 
+
+lw $a0 , ($t1)  # ptr a lista de objetos
+lw $t3 , ($a0)  # bandera
+
+while3:
+beq $a0 , $t3 , endwhile3
+
+jal delnode
+
+lw $a0 , 12($t1) # pasa a objeto siguente, en la lista de objetos
+
+j while3
+
+endwhile3:
+lw $a0 , ($t0)  # borra categoria seleccionada
+lw $t1 , 12($t0)
+
+sw $t1 , wclist # actualiza categoria actual
+
+jal delnode
+
+j delcategory_end
 
 
+# borrar categoria no unica sin objetos
+delcat_non_object:
+
+lw $a0 , ($t0)    # borra categoria seleccionada
+lw $t1 , 12($t0)  # siguiente categoria  , falta validar si el ptr sig esta vacio
+
+sw $t1 , wclist   # actualiza categoria actual
+
+jal delnode
 
 
 delcategory_end:
@@ -357,9 +411,84 @@ j     inicio
 
 # ----------------------------------------------------------
 
-newobject: 
+newobject:
+
+addiu $sp, $sp, -4
+sw    $ra, 4($sp)
+
+# si la lista esta vacia , lanzar error 501
+lw $t1 , cclist
+beqz $t1 , error501
+
+la    $a0, objName    # input category name
+jal   getblock
+move  $a2, $v0  # $a2, direcc del string ingresado por el usuario
+
+lw $t0 , wclist
+lw $a0 , 4($t0) # 2da word de la cat en curso apunta a obj
+li $a1 , 1      # cargar id del objeto , de forma incremental 
+
+# si 2da word de la cat es igual a 0 , entonces no hay objetos 
+lw $t1 , ($a0)
+bne $t1 , 0 , add_non_unique_object # si ID == 0 , no hay objetos
+
+li $a1 , 1
+jal addnode
+
+add_non_unique_object:
+# iterar hasta el ultimo objeto
+
+lw $t1 , ($a0)  # 2da word es un objeto
+lw $t2 , ($t1)   # bandera
+li $t3 , 1  # counter
+
+while4:
+beq $t3 , 1 , body3
+beq $t1 , $t2 , endwhile4 
+
+lw $t4 , 4($t1)  # guardo el id del objeto actual
+lw $t1 , 12($t1) # avanzo al sig objeto
+
+j while4
+
+body3:
+
+addi $t3 ,$t3 , 1
+lw $t1 , 12($t1) # avanzo al sig objeto
+
+j while4
+
+endwhile4:
+addi $t4 ,$t4 , 1  # incremento el ID en 1
+lw $a1 , ($t4) 
+
+jal addnode
+
+
+error501:
+la $a0 , error
+li $v0 , 4
+syscall
+
+li $a0 , 501
+li $v0 , 1
+syscall
+
+newobject_end:
+lw    $ra, 4($sp)     		
+addiu $sp, $sp, 4
+j     inicio
+
+
+
+# ----------------------------------------------------------
+
 listobjects: 
 delobject:
+
+
+
+
 
 
 else:
@@ -393,7 +522,7 @@ jal  smalloc
 # set node content
 sw   $a1, 4($v0)  # (ptr al 2do word del nodo (lista de objetos))
 sw   $a2, 8($v0)  # se carga la direcc del string ingresado , en el 3er word del nodo
-lw   $a0, 4($sp)  # a0 tiene la direcc de la lista de categorias
+lw   $a0, 4($sp)  # a0 tiene la direcc de la lista de categorias/objetos
 lw   $t0, ($a0)   # first node address
 beqz $t0, addnode_empty_list
 
@@ -479,6 +608,7 @@ syscall
 jal  smalloc
 
 move $a0, $v0    # se guarda el nuevo bloque de memoria creado por smalloc,en $a0 
+
 li   $a1, 16
 li   $v0, 8      # se lee un string ingresado por el usario,y se almacena en $a0
 syscall
